@@ -2,12 +2,12 @@
 import streamlit as st
 import os
 import time
-from utils import init_mistral_llm, save_uploaded_file
+from utils import init_llm, save_uploaded_file
 from pdf_processor import PdfProcessor
 
 # Page configuration
 st.set_page_config(
-    page_title="PDF Analyzer with Mistral",
+    page_title="PDF Analyzer with AI",
     page_icon="📄",
     layout="wide"
 )
@@ -21,6 +21,9 @@ if 'processor' not in st.session_state:
     
 if 'status_messages' not in st.session_state:
     st.session_state.status_messages = []
+    
+if 'model_provider' not in st.session_state:
+    st.session_state.model_provider = "openai"  # Default to OpenAI
 
 # Function to append messages to status log
 def update_status(message):
@@ -32,38 +35,72 @@ def update_status(message):
     st.session_state.status_messages.append(f"[{timestamp}] {message}")
 
 # Main application
-st.title("PDF Analyzer with Mistral & LangChain")
+st.title("PDF Analyzer with AI")
 
 # Sidebar setup
 with st.sidebar:
     st.header("About")
     st.markdown("""
         This application uses:
-        - **IBM WatsonX.ai** (Mistral Large model)
+        - **AI** for document understanding
         - **LangChain** for document processing
         - **Streamlit** for the user interface
     """)
     
-    #st.header("Configuration")
+    st.header("Model Configuration")
+    
+    # Model provider selection
+    model_provider = st.radio(
+        "Select AI Model Provider",
+        ["OpenAI", "WatsonX/Mistral"],
+        index=0 if st.session_state.model_provider == "openai" else 1,
+        help="Choose which AI model provider to use for document analysis"
+    )
+    
+    # Update session state if the model provider changed
+    selected_provider = "openai" if model_provider == "OpenAI" else "watsonx"
+    if st.session_state.model_provider != selected_provider:
+        st.session_state.model_provider = selected_provider
+        if st.session_state.processor is not None:
+            st.session_state.processor = None
+            update_status(f"🔄 Switching to {model_provider} model")
+    
     # Check if credentials exist
     missing_credentials = False
-    if not os.getenv("WATSONX_API_KEY") or not os.getenv("WATSONX_PROJECT_ID"):
-       missing_credentials = True
-       st.error("⚠️ WatsonX.ai credentials not found")
-       
-       # Input fields for credentials
-       with st.form("credentials_form"):
-           api_key = st.text_input("WatsonX API Key", type="password")
-           project_id = st.text_input("WatsonX Project ID")
-           submitted = st.form_submit_button("Save Credentials")
-           
-           if submitted and api_key and project_id:
-               # In a real app, you might want to store these securely
-               os.environ["WATSONX_API_KEY"] = api_key
-               os.environ["WATSONX_PROJECT_ID"] = project_id
-               st.success("✅ Credentials saved for this session")
-               missing_credentials = False
-               st.experimental_rerun()
+    
+    if st.session_state.model_provider == "openai" and not os.getenv("OPENAI_API_KEY"):
+        missing_credentials = True
+        st.error("⚠️ OpenAI API credentials not found")
+        
+        # Input fields for credentials
+        with st.form("openai_credentials_form"):
+            api_key = st.text_input("OpenAI API Key", type="password")
+            submitted = st.form_submit_button("Save Credentials")
+            
+            if submitted and api_key:
+                # In a real app, you might want to store these securely
+                os.environ["OPENAI_API_KEY"] = api_key
+                st.success("✅ OpenAI credentials saved for this session")
+                missing_credentials = False
+                st.experimental_rerun()
+                
+    elif st.session_state.model_provider == "watsonx" and (not os.getenv("WATSONX_API_KEY") or not os.getenv("WATSONX_PROJECT_ID")):
+        missing_credentials = True
+        st.error("⚠️ WatsonX credentials not found")
+        
+        # Input fields for credentials
+        with st.form("watsonx_credentials_form"):
+            api_key = st.text_input("WatsonX API Key", type="password")
+            project_id = st.text_input("WatsonX Project ID")
+            submitted = st.form_submit_button("Save Credentials")
+            
+            if submitted and api_key and project_id:
+                # In a real app, you might want to store these securely
+                os.environ["WATSONX_API_KEY"] = api_key
+                os.environ["WATSONX_PROJECT_ID"] = project_id
+                st.success("✅ WatsonX credentials saved for this session")
+                missing_credentials = False
+                st.experimental_rerun()
 
 # Display status messages
 status_container = st.container()
@@ -78,17 +115,18 @@ with col1:
     uploaded_file = st.file_uploader("Choose a PDF file", type="pdf")
     
     if uploaded_file and not missing_credentials:
-        # Initialize Mistral LLM if needed
+        # Initialize LLM if needed
         if st.session_state.processor is None:
-            update_status("🔄 Initializing Mistral Large model...")
-            mistral_llm = init_mistral_llm()
+            model_name = "OpenAI GPT-4o" if st.session_state.model_provider == "openai" else "WatsonX Mistral"
+            update_status(f"🔄 Initializing {model_name} model...")
+            llm = init_llm(model_provider=st.session_state.model_provider)
             
-            if mistral_llm:
-                st.session_state.processor = PdfProcessor(mistral_llm, update_status)
-                update_status("✅ Mistral Large model initialized successfully")
+            if llm:
+                st.session_state.processor = PdfProcessor(llm, update_status)
+                update_status(f"✅ {model_name} model initialized successfully")
             else:
-                update_status("❌ Failed to initialize Mistral Large model")
-                st.error("Unable to initialize Mistral Large model. Check credentials.")
+                update_status(f"❌ Failed to initialize {model_name} model")
+                st.error(f"Unable to initialize {model_name} model. Check credentials.")
         
         # Save the file
         if 'pdf_path' not in st.session_state:
@@ -180,4 +218,4 @@ with status_container:
 
 # Footer
 st.markdown("""---
-*Built with Langchain, Streamlit, and WatsonX.ai's Mistral Large model*""")
+*Built with LangChain and Streamlit*""")

@@ -16,7 +16,7 @@ from datetime import datetime
 import PyPDF2
 
 
-from utils import get_text, get_prompt, clean_response, json_to_excel, init_mistral_llm
+from utils import get_text, get_prompt, clean_response, json_to_excel, init_llm
 
 # qui
 # Imposta la variabile d'ambiente per risolvere il conflitto di OpenMP
@@ -38,15 +38,15 @@ converter = DocumentConverter()
 
 
 class PdfProcessor:
-    def __init__(self, mistral_llm, status_callback=None):
+    def __init__(self, llm, status_callback=None):
         """
-        Initialize a PDF processor with Mistral LLM.
+        Initialize a PDF processor with an LLM.
         
         Args:
-            mistral_llm: A WatsonxLLM instance for Mistral Large
+            llm: An LLM instance (either WatsonxLLM or ChatOpenAI)
             status_callback: A function to call with status updates
         """
-        self.mistral_llm = mistral_llm
+        self.llm = llm
         self.status_callback = status_callback
         self.vectorstore = None
         self.qa_chain = None
@@ -153,11 +153,11 @@ class PdfProcessor:
             if progress_callback:
                 progress_callback(f"Generating response for {filename}")
                 
-            # Call the Mistral model using LangChain's WatsonxLLM interface
-            progress_callback(f"Calling Mistral model for {filename}...")
+            # Call the LLM using LangChain
+            progress_callback(f"Calling AI model for {filename}...")
             
-            # Use the proper mistral_llm instance from the class
-            response_text = self.mistral_llm.invoke(complete_prompt)
+            # Use the LLM instance from the class
+            response_text = self.llm.invoke(complete_prompt)
 
             # Extract JSON from response_text
             clean_text = clean_response(response_text)
@@ -373,7 +373,7 @@ class PdfProcessor:
             context = " ".join([doc.page_content for doc in retrieved_docs])
             prompt = f"Context: {context}\n\nBased only on the provided context, {query}"
             
-            summary = self.mistral_llm.invoke(prompt)
+            summary = self.llm.invoke(prompt)
             self.update_status("✅ Summary generated")
             return summary
         except Exception as e:

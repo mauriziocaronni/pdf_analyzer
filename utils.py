@@ -3,66 +3,127 @@ import os
 import json
 from dotenv import load_dotenv
 
-from ibm_watsonx_ai.foundation_models.utils.enums import ModelTypes
-from langchain_ibm import WatsonxLLM
-from ibm_watsonx_ai.metanames import GenTextParamsMetaNames
+# Import WatsonX dependencies conditionally
+try:
+    from ibm_watsonx_ai.foundation_models.utils.enums import ModelTypes
+    from langchain_ibm import WatsonxLLM
+    from ibm_watsonx_ai.metanames import GenTextParamsMetaNames
+    WATSONX_AVAILABLE = True
+except ImportError:
+    WATSONX_AVAILABLE = False
+
+# Import OpenAI dependencies
+try:
+    from langchain_openai import ChatOpenAI
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
+
 import pandas as pd
 
 def get_credentials():
     """
-    Get WatsonX.ai credentials from environment variables.
+    Get credentials from environment variables.
     """
     load_dotenv()
     
     return {
-        "apikey": os.getenv("WATSONX_API_KEY"),
-        "url": os.getenv("WATSONX_URL", "https://us-south.ml.cloud.ibm.com"),
-        "project_id": os.getenv("WATSONX_PROJECT_ID")
+        "watsonx_apikey": os.getenv("WATSONX_API_KEY"),
+        "watsonx_url": os.getenv("WATSONX_URL", "https://us-south.ml.cloud.ibm.com"),
+        "watsonx_project_id": os.getenv("WATSONX_PROJECT_ID"),
+        "openai_apikey": os.getenv("OPENAI_API_KEY")
     }
 
-def init_mistral_llm(verbose=False):
+def init_llm(model_provider="watsonx", verbose=False):
     """
-    Initialize a WatsonxLLM instance with Mistral Large model.
+    Initialize an LLM instance based on the specified provider.
+    
+    Args:
+        model_provider (str): The provider to use ('watsonx' or 'openai')
+        verbose (bool): Whether to print verbose output
+        
+    Returns:
+        LLM instance or None if initialization fails
     """
     credentials = get_credentials()
     
-    # Check if credentials are available
-    if not credentials["apikey"] or not credentials["project_id"]:
-        if verbose:
-            print("❌ Missing WatsonX credentials. Set WATSONX_API_KEY and WATSONX_PROJECT_ID environment variables.")
-        return None
-    
-    watsonx_apikey = credentials["apikey"]
-    watsonx_url = credentials["url"]
-    watsonx_project_id = credentials["project_id"]
-    
-   # Parametri per il modello Mistral Large
-    model_params  = {
-    GenTextParamsMetaNames.DECODING_METHOD: "greedy",
-    GenTextParamsMetaNames.MAX_NEW_TOKENS: 13000,
-    GenTextParamsMetaNames.MIN_NEW_TOKENS: 1,
-    GenTextParamsMetaNames.TEMPERATURE: 0,
-    GenTextParamsMetaNames.TOP_K: 50,
-    GenTextParamsMetaNames.TOP_P: 1,
-    }
+    if model_provider.lower() == "watsonx":
+        if not WATSONX_AVAILABLE:
+            if verbose:
+                print("❌ WatsonX dependencies not available. Install with 'pip install langchain-ibm ibm-watson-machine-learning'")
+            return None
+            
+        # Check if WatsonX credentials are available
+        if not credentials["watsonx_apikey"] or not credentials["watsonx_project_id"]:
+            if verbose:
+                print("❌ Missing WatsonX credentials. Set WATSONX_API_KEY and WATSONX_PROJECT_ID environment variables.")
+            return None
+        
+        # Parametri per il modello Mistral Large
+        model_params = {
+            GenTextParamsMetaNames.DECODING_METHOD: "greedy",
+            GenTextParamsMetaNames.MAX_NEW_TOKENS: 13000,
+            GenTextParamsMetaNames.MIN_NEW_TOKENS: 1,
+            GenTextParamsMetaNames.TEMPERATURE: 0,
+            GenTextParamsMetaNames.TOP_K: 50,
+            GenTextParamsMetaNames.TOP_P: 1,
+        }
 
-
-    # Create WatsonxLLM instance
-    try:
-        mistral_llm = WatsonxLLM(
-        model_id="mistralai/mistral-large",
-        url=watsonx_url,
-        apikey=watsonx_apikey,
-        project_id=watsonx_project_id,
-        params=model_params,
-    )
+        # Create WatsonxLLM instance
+        try:
+            llm = WatsonxLLM(
+                model_id="mistralai/mistral-large",
+                url=credentials["watsonx_url"],
+                apikey=credentials["watsonx_apikey"],
+                project_id=credentials["watsonx_project_id"],
+                params=model_params,
+            )
+            if verbose:
+                print("✅ Mistral Large model initialized successfully.")
+            return llm
+        except Exception as e:
+            if verbose:
+                print(f"❌ Error initializing Mistral Large model: {str(e)}")
+            return None
+    
+    elif model_provider.lower() == "openai":
+        if not OPENAI_AVAILABLE:
+            if verbose:
+                print("❌ OpenAI dependencies not available. Install with 'pip install langchain-openai'")
+            return None
+            
+        # Check if OpenAI credentials are available
+        if not credentials["openai_apikey"]:
+            if verbose:
+                print("❌ Missing OpenAI credentials. Set OPENAI_API_KEY environment variable.")
+            return None
+        
+        # Create ChatOpenAI instance
+        try:
+            llm = ChatOpenAI(
+                api_key=credentials["openai_apikey"],
+                model="gpt-4o",
+                temperature=0
+            )
+            if verbose:
+                print("✅ OpenAI GPT-4o model initialized successfully.")
+            return llm
+        except Exception as e:
+            if verbose:
+                print(f"❌ Error initializing OpenAI model: {str(e)}")
+            return None
+    
+    else:
         if verbose:
-            print("✅ Mistral Large model initialized successfully.")
-        return mistral_llm
-    except Exception as e:
-        if verbose:
-            print(f"❌ Error initializing Mistral Large model: {str(e)}")
+            print(f"❌ Invalid model provider: {model_provider}. Choose 'watsonx' or 'openai'.")
         return None
+
+# For backward compatibility
+def init_mistral_llm(verbose=False):
+    """
+    Initialize a WatsonxLLM instance with Mistral Large model (legacy function).
+    """
+    return init_llm(model_provider="watsonx", verbose=verbose)
 
 def save_uploaded_file(uploaded_file, upload_dir="uploads"):
     """
