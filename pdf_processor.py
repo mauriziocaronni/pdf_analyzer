@@ -94,7 +94,7 @@ class PdfProcessor:
             num_pages = len(reader.pages)
             start = 0
             part_num = 1
-            n_split = 1
+            n_split = 25
 
             # Suddividi il PDF in blocchi da N pagine per volta
             while start < num_pages:
@@ -156,8 +156,17 @@ class PdfProcessor:
             # Call the LLM using LangChain
             progress_callback(f"Calling AI model for {filename}...")
             
-            # Use the LLM instance from the class
-            response_text = self.llm.invoke(complete_prompt)
+            # Use the LLM instance from the class - handle different model interfaces
+            try:
+                # First try the standard invoke method (both OpenAI and WatsonX should support this)
+                response_text = self.llm.invoke(complete_prompt)
+                
+                # If we get a ChatMessage or similar response object, extract the content
+                if hasattr(response_text, 'content'):
+                    response_text = response_text.content
+            except Exception as e:
+                progress_callback(f"Error during model invocation: {str(e)}")
+                return False
 
             # Extract JSON from response_text
             clean_text = clean_response(response_text)
@@ -373,7 +382,10 @@ class PdfProcessor:
             context = " ".join([doc.page_content for doc in retrieved_docs])
             prompt = f"Context: {context}\n\nBased only on the provided context, {query}"
             
+            # Handle different model response formats
             summary = self.llm.invoke(prompt)
+            if hasattr(summary, 'content'):
+                summary = summary.content
             self.update_status("✅ Summary generated")
             return summary
         except Exception as e:
