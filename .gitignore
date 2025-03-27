@@ -4,3 +4,4 @@ uploads/
 .env
 __pycache__/
 .DS_Store
+output.xlsx
