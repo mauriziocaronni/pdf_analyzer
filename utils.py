@@ -15,6 +15,7 @@ except ImportError:
 # Import OpenAI dependencies
 try:
     from langchain_openai import ChatOpenAI
+    from langchain_core.messages import HumanMessage
     OPENAI_AVAILABLE = True
 except ImportError:
     OPENAI_AVAILABLE = False
@@ -34,7 +35,7 @@ def get_credentials():
         "openai_apikey": os.getenv("OPENAI_API_KEY")
     }
 
-def init_llm(model_provider="watsonx", verbose=False):
+def init_llm(model_provider="watsonx", verbose=True):  # Set verbose=True by default
     """
     Initialize an LLM instance based on the specified provider.
     
@@ -45,18 +46,24 @@ def init_llm(model_provider="watsonx", verbose=False):
     Returns:
         LLM instance or None if initialization fails
     """
+    print(f"Initializing LLM with provider: {model_provider}")
     credentials = get_credentials()
+    
+    # Print available credentials (masked for security)
+    print(f"WatsonX API Key available: {bool(credentials['watsonx_apikey'])}")
+    print(f"WatsonX Project ID available: {bool(credentials['watsonx_project_id'])}")
+    print(f"OpenAI API Key available: {bool(credentials['openai_apikey'])}")
     
     if model_provider.lower() == "watsonx":
         if not WATSONX_AVAILABLE:
-            if verbose:
-                print("❌ WatsonX dependencies not available. Install with 'pip install langchain-ibm ibm-watson-machine-learning'")
+            error_msg = "❌ WatsonX dependencies not available. Install with 'pip install langchain-ibm ibm-watson-machine-learning'"
+            print(error_msg)
             return None
             
         # Check if WatsonX credentials are available
         if not credentials["watsonx_apikey"] or not credentials["watsonx_project_id"]:
-            if verbose:
-                print("❌ Missing WatsonX credentials. Set WATSONX_API_KEY and WATSONX_PROJECT_ID environment variables.")
+            error_msg = "❌ Missing WatsonX credentials. Set WATSONX_API_KEY and WATSONX_PROJECT_ID environment variables."
+            print(error_msg)
             return None
         
         # Parametri per il modello Mistral Large
@@ -71,6 +78,7 @@ def init_llm(model_provider="watsonx", verbose=False):
 
         # Create WatsonxLLM instance
         try:
+            print("Attempting to initialize WatsonX/Mistral...")
             llm = WatsonxLLM(
                 model_id="mistralai/mistral-large",
                 url=credentials["watsonx_url"],
@@ -78,39 +86,60 @@ def init_llm(model_provider="watsonx", verbose=False):
                 project_id=credentials["watsonx_project_id"],
                 params=model_params,
             )
-            if verbose:
-                print("✅ Mistral Large model initialized successfully.")
+            print("✅ Mistral Large model initialized successfully.")
             return llm
         except Exception as e:
-            if verbose:
-                print(f"❌ Error initializing Mistral Large model: {str(e)}")
+            error_msg = f"❌ Error initializing Mistral Large model: {str(e)}"
+            print(error_msg)
+            # Print stack trace for debugging
+            import traceback
+            print(traceback.format_exc())
             return None
     
     elif model_provider.lower() == "openai":
-        if not OPENAI_AVAILABLE:
-            if verbose:
-                print("❌ OpenAI dependencies not available. Install with 'pip install langchain-openai'")
-            return None
-            
-        # Check if OpenAI credentials are available
-        if not credentials["openai_apikey"]:
-            if verbose:
-                print("❌ Missing OpenAI credentials. Set OPENAI_API_KEY environment variable.")
-            return None
-        
-        # Create ChatOpenAI instance
+        # Direct OpenAI approach without using LangChain
         try:
-            llm = ChatOpenAI(
-                api_key=credentials["openai_apikey"],
-                model="gpt-4o",
-                temperature=0
-            )
-            if verbose:
-                print("✅ OpenAI GPT-4o model initialized successfully.")
+            # Check for OpenAI API key
+            if not credentials["openai_apikey"]:
+                print("❌ Missing OpenAI API key. Please set OPENAI_API_KEY environment variable.")
+                return None
+                
+            # Import OpenAI library directly
+            try:
+                import openai
+            except ImportError:
+                print("❌ OpenAI package not installed. Run 'pip install openai'")
+                return None
+                
+            # Create a simple OpenAI client
+            api_key = credentials["openai_apikey"]
+            print(f"Using OpenAI API key (masked): {api_key[:4]}...{api_key[-4:]}")
+            
+            # Create a custom LLM class that mimics the LangChain interface
+            class SimpleOpenAILLM:
+                def __init__(self, api_key):
+                    self.client = openai.OpenAI(api_key=api_key)
+                    
+                def invoke(self, prompt):
+                    try:
+                        response = self.client.chat.completions.create(
+                            model="gpt-4o",
+                            messages=[{"role": "user", "content": prompt}],
+                            temperature=0
+                        )
+                        return response.choices[0].message.content
+                    except Exception as e:
+                        print(f"❌ Error invoking OpenAI: {e}")
+                        raise e
+            
+            llm = SimpleOpenAILLM(api_key)
+            print("✅ OpenAI GPT-4o model initialized successfully")
             return llm
+            
         except Exception as e:
-            if verbose:
-                print(f"❌ Error initializing OpenAI model: {str(e)}")
+            print(f"❌ Error initializing OpenAI: {e}")
+            import traceback
+            print(traceback.format_exc())
             return None
     
     else:
