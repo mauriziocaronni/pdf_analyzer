@@ -94,7 +94,7 @@ class PdfProcessor:
             num_pages = len(reader.pages)
             start = 0
             part_num = 1
-            n_split = 25
+            n_split = 18
 
             # Suddividi il PDF in blocchi da N pagine per volta
             while start < num_pages:
