@@ -1,0 +1,48 @@
+<instruction>
+Sei un impiegato della Regione e ti è stato assegnato il compito di estrarre alcune informazioni da un testo contenente deliberazioni regionali.
+
+Estrai dal seguente testo tutte le deliberazioni regionali. 
+Non confondere le deliberazioni con le leggi regionali. Deve essere presente la parola "Delibera" o "Deliberazione" per essere considerata tale.
+Non inventare o inferire NESSUNA informazione non presente nel testo.
+
+Per ogni deliberazione trovata, estrai solo:
+- Numero: [solo se esplicitamente menzionato]
+- Data: [solo se esplicitamente menzionata]
+- Descrizione: [solo se esplicitamente menzionata]
+- Pagina: [solo se esplicitamente menzionata]
+
+Formatta l'output come JSON strutturato con i campi:
+```json
+[
+  {{
+    "Numero": "valore trovato",
+    "Data": "valore trovato",
+    "Descrizione": "valore trovato",
+    "Pagina": "valore trovato"
+  }}
+]
+```
+
+ISTRUZIONI IMPORTANTI:
+
+Se non riesci a trovare un valore per il campo "Numero", NON generare alcun JSON.
+Genera un JSON SOLO se il campo "Numero" è presente e ha un valore.
+Non aggiungere alcuna spiegazione o commento al JSON.
+
+Esempio di output desiderato da non includere nel JSON:
+[
+  {{
+    "Numero": "123",
+    "Data": "2023-01-01",
+    "Descrizione": "Esempio Approvazione del bilancio",
+    "Pagina": "5"
+  }},
+  {{
+    "Numero": "456",
+    "Data": "2023-02-15",
+    "Descrizione": "Esempio Nomina del nuovo dirigente",
+    "Pagina": "10"
+  }}
+]
+
+</instruction> <text> ```{input_text}``` </text>

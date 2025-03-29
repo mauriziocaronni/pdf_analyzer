@@ -240,57 +240,17 @@ def get_text(file_path=None):
 # parte AI
 
 def get_prompt(input_text):
-
-    # Get the complete prompt by replacing variables
-    complete_prompt = f"""
-<instruction>
-Sei un impiegato della Regione e ti è stato assegnato il compito di estrarre alcune informazioni da un testo contenente deliberazioni regionali.
-
-Estrai dal seguente testo tutte le deliberazioni regionali. 
-Non confondere le deliberazioni con le leggi regionali. Deve essere presente la parola "Delibera" o "Deliberazione" per essere considerata tale.
-Non inventare o inferire NESSUNA informazione non presente nel testo.
-
-Per ogni deliberazione trovata, estrai solo:
-- Numero: [solo se esplicitamente menzionato]
-- Data: [solo se esplicitamente menzionata]
-- Descrizione: [solo se esplicitamente menzionata]
-- Pagina: [solo se esplicitamente menzionata]
-
-Formatta l'output come JSON strutturato con i campi:
-```json
-[
-  {{
-    "Numero": "valore trovato",
-    "Data": "valore trovato",
-    "Descrizione": "valore trovato",
-    "Pagina": "valore trovato"
-  }}
-]
-
-ISTRUZIONI IMPORTANTI:
-
-Se non riesci a trovare un valore per il campo "Numero", NON generare alcun JSON.
-Genera un JSON SOLO se il campo "Numero" è presente e ha un valore.
-Non aggiungere alcuna spiegazione o commento al JSON.
-
-Esempio di output desiderato da non includere nel JSON:
-[
-  {{
-    "Numero": "123",
-    "Data": "2023-01-01",
-    "Descrizione": "Esempio Approvazione del bilancio",
-    "Pagina": "5"
-  }},
-  {{
-    "Numero": "456",
-    "Data": "2023-02-15",
-    "Descrizione": "Esempio Nomina del nuovo dirigente",
-    "Pagina": "10"
-  }}
-]
-
-</instruction> <text> ```{input_text}``` </text> ```
-        """
+    # Read prompt from external file
+    try:
+        with open('prompt_01.txt', 'r', encoding='utf-8') as f:
+            prompt_template = f.read()
+        
+        # Replace the {input_text} placeholder with actual input
+        complete_prompt = prompt_template.format(input_text=input_text)
+    except Exception as e:
+        print(f"Error reading prompt file: {e}")
+        # Fallback to a basic prompt if file can't be read
+        complete_prompt = f"<instruction>Extract deliberation data from text.</instruction> <text>{input_text}</text>"
     return complete_prompt
 
 # fine
